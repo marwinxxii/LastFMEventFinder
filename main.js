@@ -76,7 +76,6 @@ function onEventsLoaded(data, textStatus, xhr)
             data.events.event = [data.events.event];
         }
         var events = data.events.event;
-        console.log(currentArtist + ':' + events.length);
         for(var i in events)
         {
             var event = events[i];
@@ -205,7 +204,7 @@ function showEvents()
                         href: event.url,
                         text: event.title,
                         target:' _blank',
-                        title 'Go to event page'
+                        title: 'Go to event page'
                     })
                 ))
                 .append($('<td>', {text: event.location}))
