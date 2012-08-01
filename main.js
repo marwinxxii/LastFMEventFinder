@@ -1,8 +1,9 @@
 var artistCache = {};
-var events = null;
+var eventCache = null;
 var toload = null;
 // needed cause may be more than one artist in event
 var currentArtist = null;
+var periodStart = null, periodEnd = new Date(2099, 1, 1);
 
 function loadArtists(user)
 {
@@ -21,32 +22,6 @@ function loadArtists(user)
     });
 }
 
-function onArtistsLoaded(data, textStatus, xhr)
-{
-    if (!('topartists' in data) || !('artist' in data.topartists))
-    {
-        loadEvents(toload.pop(), 1);
-        return;
-    }
-    var artists = data.topartists.artist;
-    var cache = artistCache[data.topartists.artist.user] = [];
-    if (artists.hasOwnProperty('length'))
-    {
-        for (var i in artists)
-        {
-            var artist = artists[i];
-            cache.push(artist.name);
-        }
-    }
-    else
-    {
-        cache.push(artists);
-    }
-    events = {};
-    toload = cache.slice();
-    loadEvents(toload.pop(), 1);
-}
-
 function loadEvents(artist, page)
 {
     currentArtist = artist;
@@ -62,34 +37,61 @@ function loadEvents(artist, page)
         dataType: 'jsonp',
         crossDomain: true,
         success: onEventsLoaded,
-        error: onAjaxError//TODO
+        //error: onAjaxError//TODO
     });
+}
+
+function onArtistsLoaded(data, textStatus, xhr)
+{
+    if (!('artist' in data.topartists))
+        return;
+    if (!$.isArray(data.topartists.artist))
+    {
+        data.topartists.artist = [data.topartists.artist];
+    }
+    var artists = data.topartists.artist;
+    var cache = artistCache[data.topartists.user] = [];
+    for (var i in artists)
+    {
+        var artist = artists[i];
+        cache.push(artist.name);
+    }
+    eventCache = [];
+    toload = cache.slice();
+    loadEvents(toload.pop(), 1);
+}
+
+function onAjaxError(xhr, textStatus, errorThrown)
+{
+    alert("Sorry, couldn't load artist list");
+    $('#startSearch').removeAttr('disabled');
 }
 
 function onEventsLoaded(data, textStatus, xhr)
 {
-    if (!('events' in data) || !('event' in data.events))
+    if ('event' in data.events)
     {
-        if (toload.length != 0)
+        if (!$.isArray(data.events.event))
         {
-            loadEvents(toload.pop(), 1);
+            data.events.event = [data.events.event];
         }
-        else
-        {
-            showEvents();
-            $('#startSearch').removeAttr('disabled');
-        }
-        return;
-    }
-    var events = data.events.event;
-    var cache = events[currentArtist] = [];
-    console.log(currentArtist + ':' + events.length);
-    if (events.hasOwnProperty('length'))
-    {
+        var events = data.events.event;
+        console.log(currentArtist + ':' + events.length);
         for(var i in events)
         {
             var event = events[i];
-            cache.push(event);
+            if (event.cancelled !== "1")
+            {
+                eventCache.push({
+                    artist: currentArtist,
+                    title: event.title,
+                    date: new Date(event.startDate),
+                    url: event.url,
+                    location: event.venue.location.city + ', '
+                        + event.venue.location.country,
+                    venue: event.venue.name
+                });
+            }
         }
     }
     if (data.page < data.totalPages)
@@ -107,11 +109,6 @@ function onEventsLoaded(data, textStatus, xhr)
     }
 }
 
-function onAjaxError(xhr, textStatus, errorThrown)
-{
-    alert("Sorry, couldn't load artist list");
-}
-
 function onStartSearch()
 {
     var user = $('#username').val();
@@ -120,14 +117,20 @@ function onStartSearch()
         alert('Please enter user name');
         return;
     }
-    var periodStart = $('#periodStart').val();
+    periodStart = $('#periodStart').val();
     if (periodStart == null || periodStart === '')
     {
         alert('Please enter start date of period');
         return;
     }
     periodStart = new Date(periodStart);
-    if (!(user in artistCache))
+    var end = $('#periodEnd').val();
+    if (end != null && end !== '')
+    {
+        periodEnd = new Date(end);
+    }
+    //if (!(user in artistCache))
+    if (eventCache == null)
     {
         loadArtists(user);
         $('#startSearch').attr('disabled', 'disabled');
@@ -138,19 +141,75 @@ function onStartSearch()
     }
 }
 
+function groupEvents()
+{
+    var groups = {};
+    var start = periodStart.getTime();
+    var end = periodEnd.getTime();
+    for(var i in eventCache)
+    {
+        var ev = eventCache[i];
+        var date = ev.date;
+        var time = date.getTime();
+        if (time >= start && time <= end)
+        {
+            date.setHours(0);
+            date.setMinutes(0);
+            date.setSeconds(0);
+            date = date.toLocaleDateString();
+            if (!(date in groups))
+                groups[date] = [];
+            groups[date].push(ev);
+        }
+    }
+    var ordered = [];
+    for(var d in groups)
+    {
+        ordered.push(d);
+    }
+    ordered = ordered.sort();
+    return {groups: groups, order: ordered};
+}
+
 function showEvents()
 {
-    var $table = $('table')
-    for(var artist in events)
+    $('#results').remove();
+    var grouped = groupEvents();
+    var $table = $('<table>', {id: 'results'});
+    for(var date in grouped.order)
     {
-        $table.append('<tr><td class="divider" colspan=3>' + artist + '</td></tr>');
-        for(var i in events[artist])
+        date = grouped.order[date];
+        $table.append(
+            $('<tr>').append(
+                $('<td>', {
+                    class: 'divider',
+                    colspan: 4,
+                    text: date
+                })
+            )
+        );
+        for(var i in grouped.groups[date])
         {
-            var event = events[artist][i];
-            $('tr')
-                .append('<td>' + event.startDate + '</td>')
-                .append('<td>' + event.venue.location.city + '</td>')
-                .append('<td>' + event.venue.title + '</td>');
+            var event = grouped.groups[date][i];
+            var $tr = $('<tr>')
+                .append($('<td>').append(
+                    $('<a>', {
+                        href: 'http://last.fm/music/' + event.artist + '/+events',
+                        text: event.artist,
+                        target: '_blank',
+                        title: 'Go to artist events'
+                    })
+                ))
+                .append($('<td>').append(
+                    $('<a>', {
+                        href: event.url,
+                        text: event.title,
+                        target:' _blank',
+                        title 'Go to event page'
+                    })
+                ))
+                .append($('<td>', {text: event.location}))
+                .append($('<td>', {text: event.venue}));
             $table.append($tr);
         }
     }
@@ -158,7 +217,19 @@ function showEvents()
 }
 
 $(document).ready(function(){
-    $('#periodStart').datepicker({minDate: new Date()});
+    $('#periodStart').datepicker({
+        minDate: new Date(),
+        onSelect: function(dateText, inst) {
+            var $endPicker = $('#periodEnd');
+            var newDate = new Date(dateText);
+            var endDate = $endPicker.datepicker('getDate');
+            if (endDate != null && newDate.getTime() > endDate.getTime())
+            {
+                $endPicker.datepicker('setDate', null);
+            }
+            $endPicker.datepicker('option', 'minDate', newDate);
+        }
+    });
     $('#periodEnd').datepicker({minDate: new Date()});
     $('#startSearch').click(onStartSearch);
 });
