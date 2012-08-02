@@ -57,13 +57,17 @@ function onArtistsLoaded(data, textStatus, xhr)
     }
     eventCache = [];
     toload = cache.slice();
-    loadEvents(toload.pop(), 1);
+    toload.total = toload.length;
+    artist = toload.pop();
+    $('#status-text').text(artist);
+    loadEvents(artist, 1);
 }
 
 function onAjaxError(xhr, textStatus, errorThrown)
 {
     alert("Sorry, couldn't load artist list");
     $('#startSearch').removeAttr('disabled');
+    $('#status-container').hide();
 }
 
 function onEventsLoaded(artist, data)
@@ -98,12 +102,17 @@ function onEventsLoaded(artist, data)
     }
     else if (toload.length != 0)
     {
-        loadEvents(toload.pop(), 1);
+        var artist = toload.pop();
+        $('#status-text').text(artist);
+        $('#progressbar').progressbar('option', 'value',
+            (toload.total - toload.length - 1) / toload.total * 100);
+        loadEvents(artist, 1);
     }
     else
     {
-        showEvents();
+        $('#status-container').hide();
         $('#startSearch').removeAttr('disabled');
+        showEvents();
     }
 }
 
@@ -130,8 +139,13 @@ function onStartSearch()
     //if (!(user in artistCache))
     if (eventCache == null)
     {
-        loadArtists(user);
+        $('#status-container')
+            .show()
+            .find('#progressbar')
+            .progressbar({value: 0});
+        $('#status-text').text('Loading artists');
         $('#startSearch').attr('disabled', 'disabled');
+        loadArtists(user);
     }
     else
     {

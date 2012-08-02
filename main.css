@@ -3,3 +3,18 @@
     background: #ccc;
     font-weight: bold;
 }
+
+#status-container
+{
+    display: none;
+    position: relative;
+    width: 300px;
+}
+
+#status-text
+{
+    position: absolute;
+    top: 10px;
+    width: 300px;
+    text-align: center;
+}
