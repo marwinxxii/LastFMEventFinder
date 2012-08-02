@@ -35,8 +35,12 @@ function loadEvents(artist, page)
         crossDomain: true,
         success: function(data, textStatus, xhr) {
             onEventsLoaded(artist, data);
+        },
+        error: function() {
+            // dirty hack cause I'm lazy to call code from this function
+            onEventsLoaded(artist, {
+                events: {}, page: 0, totalsPages: 0});
         }
-        //error: onAjaxError//TODO
     });
 }
 
@@ -179,8 +183,8 @@ function groupEvents()
     {
         ordered.push(d);
     }
-    ordered = ordered.sort();
-    return {groups: groups, order: ordered};
+    groups.order = ordered.sort();
+    return groups;
 }
 
 function showEvents()
@@ -200,9 +204,9 @@ function showEvents()
                 })
             )
         );
-        for(var i in grouped.groups[date])
+        for(var i in grouped[date])
         {
-            var event = grouped.groups[date][i];
+            var event = grouped[date][i];
             var $tr = $('<tr>')
                 .append($('<td>').append(
                     $('<a>', {
