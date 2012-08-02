@@ -1,8 +1,6 @@
 var artistCache = {};
 var eventCache = null;
 var toload = null;
-// needed cause may be more than one artist in event
-var currentArtist = null;
 var periodStart = null, periodEnd = new Date(2099, 1, 1);
 
 function loadArtists(user)
@@ -24,7 +22,6 @@ function loadArtists(user)
 
 function loadEvents(artist, page)
 {
-    currentArtist = artist;
     $.ajax({
         url: 'http://ws.audioscrobbler.com/2.0/',
         data: {
@@ -36,7 +33,9 @@ function loadEvents(artist, page)
         },
         dataType: 'jsonp',
         crossDomain: true,
-        success: onEventsLoaded,
+        success: function(data, textStatus, xhr) {
+            onEventsLoaded(artist, data);
+        }
         //error: onAjaxError//TODO
     });
 }
@@ -67,7 +66,7 @@ function onAjaxError(xhr, textStatus, errorThrown)
     $('#startSearch').removeAttr('disabled');
 }
 
-function onEventsLoaded(data, textStatus, xhr)
+function onEventsLoaded(artist, data)
 {
     if ('event' in data.events)
     {
@@ -82,7 +81,7 @@ function onEventsLoaded(data, textStatus, xhr)
             if (event.cancelled !== "1")
             {
                 eventCache.push({
-                    artist: currentArtist,
+                    artist: artist,
                     title: event.title,
                     date: new Date(event.startDate),
                     url: event.url,
@@ -95,7 +94,7 @@ function onEventsLoaded(data, textStatus, xhr)
     }
     if (data.page < data.totalPages)
     {
-        loadEvents(currentArtist, parseInt(data.page) + 1);
+        loadEvents(artist, parseInt(data.page) + 1);
     }
     else if (toload.length != 0)
     {
@@ -193,7 +192,8 @@ function showEvents()
             var $tr = $('<tr>')
                 .append($('<td>').append(
                     $('<a>', {
-                        href: 'http://last.fm/music/' + event.artist + '/+events',
+                        href: 'http://last.fm/music/'
+                            + encodeURIComponent(event.artist) + '/+events',
                         text: event.artist,
                         target: '_blank',
                         title: 'Go to artist events'
