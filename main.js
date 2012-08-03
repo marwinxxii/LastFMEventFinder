@@ -3,7 +3,7 @@ var eventCache = null;
 var toload = null;
 var periodStart = null, periodEnd = new Date(2099, 1, 1);
 
-function loadArtists(user)
+function loadArtists(user, success, error)
 {
     $.ajax({
         url: 'http://ws.audioscrobbler.com/2.0/',
@@ -15,12 +15,12 @@ function loadArtists(user)
         },
         dataType: 'jsonp',
         crossDomain: true,
-        success: onArtistsLoaded,
-        error: onAjaxError
+        success: success,
+        error: error
     });
 }
 
-function loadEvents(artist, page)
+function loadEvents(artist, page, success, error)
 {
     $.ajax({
         url: 'http://ws.audioscrobbler.com/2.0/',
@@ -34,12 +34,10 @@ function loadEvents(artist, page)
         dataType: 'jsonp',
         crossDomain: true,
         success: function(data, textStatus, xhr) {
-            onEventsLoaded(artist, data);
+            success(artist, data);
         },
-        error: function() {
-            // dirty hack cause I'm lazy to call code from this function
-            onEventsLoaded(artist, {
-                events: {}, page: 0, totalsPages: 0});
+        error: function(xhr, textStatus, errorThrown) {
+            error(xhr, testStatus, errorThrown);
         }
     });
 }
@@ -64,7 +62,7 @@ function onArtistsLoaded(data, textStatus, xhr)
     toload.total = toload.length;
     artist = toload.pop();
     $('#status-text').text(artist);
-    loadEvents(artist, 1);
+    loadEvents(artist, 1, onEventsLoaded, onEventsAjaxError);
 }
 
 function onAjaxError(xhr, textStatus, errorThrown)
@@ -72,6 +70,12 @@ function onAjaxError(xhr, textStatus, errorThrown)
     alert("Sorry, couldn't load artist list");
     $('#startSearch').removeAttr('disabled');
     $('#status-container').hide();
+}
+
+function onEventsAjaxError(xhr, textStatus, errorThrown)
+{
+    // dirty hack cause I'm lazy to call code from this function
+    onEventsLoaded(artist, {events: {}, page: 0, totalsPages: 0});
 }
 
 function onEventsLoaded(artist, data)
@@ -102,7 +106,8 @@ function onEventsLoaded(artist, data)
     }
     if (data.page < data.totalPages)
     {
-        loadEvents(artist, parseInt(data.page) + 1);
+        loadEvents(artist, parseInt(data.page) + 1,
+            onEventsLoaded, onEventsAjaxError);
     }
     else if (toload.length != 0)
     {
@@ -110,7 +115,7 @@ function onEventsLoaded(artist, data)
         $('#status-text').text(artist);
         $('#progressbar').progressbar('option', 'value',
             (toload.total - toload.length - 1) / toload.total * 100);
-        loadEvents(artist, 1);
+        loadEvents(artist, 1, onEventsLoaded, onEventsAjaxError);
     }
     else
     {
@@ -149,7 +154,7 @@ function onStartSearch()
             .progressbar({value: 0});
         $('#status-text').text('Loading artists');
         $('#startSearch').attr('disabled', 'disabled');
-        loadArtists(user);
+        loadArtists(user, onArtistsLoaded, onAjaxError);
     }
     else
     {
