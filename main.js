@@ -1,18 +1,15 @@
-var artistCache = {};
-var eventCache = null;
-var toload = null;
-var periodStart = null, periodEnd = new Date(2099, 1, 1);
-
-function loadArtists(user, success, error)
+function lastfm(params)
 {
+    var success = params.success || function(){};
+    var error = params.error || function(){};
+    delete params.success;
+    delete params.error;
     $.ajax({
         url: 'http://ws.audioscrobbler.com/2.0/',
-        data: {
-            method: 'user.gettopartists',
-            user: user,
+        data: $.extend(params, {
             api_key: 'b25b959554ed76058ac220b7b2e0a026',
-            format: 'json'
-        },
+            format: 'json',
+        }),
         dataType: 'jsonp',
         crossDomain: true,
         success: success,
@@ -20,227 +17,339 @@ function loadArtists(user, success, error)
     });
 }
 
-function loadEvents(artist, page, success, error)
+function parseArtists(data)
 {
-    $.ajax({
-        url: 'http://ws.audioscrobbler.com/2.0/',
-        data: {
-            method: 'artist.getevents',
-            artist: artist,
-            api_key: 'b25b959554ed76058ac220b7b2e0a026',
-            format: 'json',
-            page: page
-        },
-        dataType: 'jsonp',
-        crossDomain: true,
-        success: function(data, textStatus, xhr) {
-            success(artist, data);
-        },
-        error: function(xhr, textStatus, errorThrown) {
-            error(xhr, testStatus, errorThrown);
-        }
-    });
-}
-
-function onArtistsLoaded(data, textStatus, xhr)
-{
+    var result = [];
     if (!('artist' in data.topartists))
-        return;
+        return result;
     if (!$.isArray(data.topartists.artist))
     {
-        data.topartists.artist = [data.topartists.artist];
+        result.push(data.topartists.artist.name);
     }
-    var artists = data.topartists.artist;
-    var cache = artistCache[data.topartists.user] = [];
-    for (var i in artists)
+    else
     {
-        var artist = artists[i];
-        cache.push(artist.name);
+        var artists = data.topartists.artist;
+        for (var i in artists)
+        {
+            result.push(artists[i].name);
+        }
     }
-    eventCache = [];
-    toload = cache.slice();
-    toload.total = toload.length;
-    artist = toload.pop();
-    $('#status-text').text(artist);
-    loadEvents(artist, 1, onEventsLoaded, onEventsAjaxError);
+    return result;
+}
+
+function parseEvents(data, artist)
+{
+    var result = [];
+    if (!('event' in data.events))
+        return result;
+    var events = $.isArray(data.events.event)
+        ? data.events.event
+        : [data.events.event];
+    for(var i in events)
+    {
+        var event = events[i];
+        if (event.cancelled !== "1")
+        {
+            var date = new Date(event.startDate);
+            date.setHours(0);
+            date.setMinutes(0);
+            date.setSeconds(0);
+            result.push({
+                artist: artist,
+                title: event.title,
+                date: date,
+                url: event.url,
+                city: event.venue.location.city,
+                country: event.venue.location.country,
+                venue: event.venue.name
+            });
+        }
+    }
+    return result;
+}
+
+function filterEvents(events, filters)
+{
+    var result = [];
+    for (var i in events)
+    {
+        var ev = events[i];
+        var time = ev.date.getTime();
+        if (time >= filters.start && time <= filters.end)
+        {
+            if (filters.cities || filters.countries)
+            {
+                if (filters.cities && ev.city
+                    && filters.cities.indexOf(ev.city.toLowerCase()) != -1)
+                {
+                    result.push(ev);
+                }
+                else if (filters.countries
+                    && filters.countries.indexOf(ev.country.toLowerCase()) != -1)
+                {
+                    result.push(ev);
+                }
+            }
+            else
+            {
+                result.push(ev);
+            }
+        }
+    }
+    return result;
+}
+
+function compareEvents(a, b)
+{
+    return a.date.getTime() - b.date.getTime();
+}
+
+function sortEvents(events, order)
+{
+    if (order == 'asc')
+        return events.sort(compareEvents);
+    return event.sort(compareEvents).reverse();
 }
 
 function onAjaxError(xhr, textStatus, errorThrown)
 {
     alert("Sorry, couldn't load artist list");
     $('#startSearch').removeAttr('disabled');
-    $('#status-container').hide();
+    $('#progressbar-container').hide()
+        .find('#progressbar-text').text('');
 }
 
-function onEventsAjaxError(xhr, textStatus, errorThrown)
-{
-    // dirty hack cause I'm lazy to call code from this function
-    onEventsLoaded(artist, {events: {}, page: 0, totalsPages: 0});
-}
-
-function onEventsLoaded(artist, data)
-{
-    if ('event' in data.events)
-    {
-        if (!$.isArray(data.events.event))
-        {
-            data.events.event = [data.events.event];
-        }
-        var events = data.events.event;
-        for(var i in events)
-        {
-            var event = events[i];
-            if (event.cancelled !== "1")
-            {
-                eventCache.push({
-                    artist: artist,
-                    title: event.title,
-                    date: new Date(event.startDate),
-                    url: event.url,
-                    location: event.venue.location.city + ', '
-                        + event.venue.location.country,
-                    venue: event.venue.name
-                });
-            }
-        }
-    }
-    if (data.page < data.totalPages)
-    {
-        loadEvents(artist, parseInt(data.page) + 1,
-            onEventsLoaded, onEventsAjaxError);
-    }
-    else if (toload.length != 0)
-    {
-        var artist = toload.pop();
-        $('#status-text').text(artist);
-        $('#progressbar').progressbar('option', 'value',
-            (toload.total - toload.length - 1) / toload.total * 100);
-        loadEvents(artist, 1, onEventsLoaded, onEventsAjaxError);
-    }
-    else
-    {
-        $('#status-container').hide();
-        $('#startSearch').removeAttr('disabled');
-        showEvents();
-    }
-}
+var user = null;
 
 function onStartSearch()
 {
-    var user = $('#username').val();
-    if (user == null || user === '')
+    user = $('#username').val();
+    var artists = $('#artists').val();
+    if (!user && !artists)
     {
-        alert('Please enter user name');
+        alert('Please enter user name or artists');
         return;
     }
-    periodStart = $('#periodStart').val();
-    if (periodStart == null || periodStart === '')
+    if (!$('#periodStart').datepicker('getDate'))
     {
         alert('Please enter start date of period');
         return;
     }
-    periodStart = new Date(periodStart);
-    var end = $('#periodEnd').val();
-    if (end != null && end !== '')
+    $('#startSearch').attr('disabled', 'disabled');
+    $('#noevents').remove();
+    if (artists)
     {
-        periodEnd = new Date(end);
-    }
-    //if (!(user in artistCache))
-    if (eventCache == null)
-    {
-        $('#status-container')
-            .show()
-            .find('#progressbar')
-            .progressbar({value: 0});
-        $('#status-text').text('Loading artists');
-        $('#startSearch').attr('disabled', 'disabled');
-        loadArtists(user, onArtistsLoaded, onAjaxError);
+        onArtistsReady(artists.split(','));
     }
     else
     {
-        showEvents();
-    }
-}
-
-function groupEvents()
-{
-    var groups = {};
-    var start = periodStart.getTime();
-    var end = periodEnd.getTime();
-    for(var i in eventCache)
-    {
-        var ev = eventCache[i];
-        var date = ev.date;
-        var time = date.getTime();
-        if (time >= start && time <= end)
+        $('#progressbar-container')
+            .show()
+            .find('#progressbar')
+            .progressbar({value: 0});
+        $('#progressbar-text').text('Loading artists');
+        var pagesToLoad = 1;
+        artists = [];
+        var onLoaded = function(data, status, xhr)
         {
-            date.setHours(0);
-            date.setMinutes(0);
-            date.setSeconds(0);
-            date = date.toLocaleDateString();
-            if (!(date in groups))
-                groups[date] = [];
-            groups[date].push(ev);
-        }
+            var result = parseArtists(data);
+            artists.push.apply(artists, result);
+            if ('@attr' in data.topartists)
+            {
+                var page = parseInt(data.topartists['@attr'].page);
+                var totalPages = parseInt(data.topartists['@attr'].totalPages);
+            }
+            else
+            {
+                var page = parseInt(data.topartists.page);
+                var totalPages = parseInt(data.topartists.totalPages);
+            }
+            if (page < totalPages && page < pagesToLoad)
+            {
+                $('#progressbar').progressbar('option', 'value',
+                    (totalPages - page) / totalPages * 100);
+                lastfm({
+                    method: 'user.gettopartists',
+                    user: user,
+                    page: page + 1,
+                    success: onLoaded,
+                    error: onAjaxError
+                });
+            }
+            else
+            {
+                onArtistsReady(artists);
+            }
+        };
+        lastfm({
+            method: 'user.gettopartists',
+            user: user,
+            page: 1,
+            success: onLoaded,
+            error: onAjaxError
+        });
     }
-    var ordered = [];
-    for(var d in groups)
-    {
-        ordered.push(d);
-    }
-    groups.order = ordered.sort();
-    return groups;
 }
 
-function showEvents()
+function onArtistsReady(artists)
+{
+    $('#progressbar').progressbar({value: 0});
+    if (artists.length == 0)
+    {
+        $('#progressbar-container').hide()
+            .find('#progressbar-text').text('');
+        alert('Artists not found');
+        return;
+    }
+    artists.total = artists.length;
+    var artist = artists.pop();
+    var events = [];
+    var loadNext = function()
+    {
+        if (artists.length != 0)
+        {
+            // -1 because one was already loaded at first step
+            $('#progressbar').progressbar('option', 'value',
+                (artists.total - artists.length - 1) / artists.total * 100);
+            artist = artists.pop();
+            lastfm({
+                method: 'artist.getevents',
+                artist: artist,
+                page: 1,
+                success: onLoaded,
+                error: onError
+            });
+        }
+        else
+        {
+            onEventsReady(events);
+        }
+    };
+    var onLoaded = function(data)
+    {
+        var result = parseEvents(data, artist);
+        events.push.apply(events, result);
+        $('#progressbar-text').text(artist);
+        if ('@attr' in data.events)
+        {
+            var page = parseInt(data.events['@attr'].page);
+            var totalPages = parseInt(data.events['@attr'].totalPages);
+        }
+        else
+        {
+            var page = parseInt(data.events.page);
+            var totalPages = parseInt(data.events.totalPages);
+        }
+        if (page < totalPages)
+        {
+            lastfm({
+                method: 'artist.getevents',
+                artist: artist,
+                page: page + 1,
+                success: onLoaded,
+                error: onError
+            });
+            return;
+        }
+        loadNext();
+    };
+    var onError = function(xhr, status, error)
+    {
+        $('#progressbar-text').text(artist + ': failed');
+        loadNext();
+    };
+    $('#progressbar-container')
+        .show()
+        .find('#progressbar')
+        .progressbar({value: 0});
+    $('#progressbar-text').text(artist);
+    lastfm({
+        method: 'artist.getevents',
+        artist: artist,
+        page: 1,
+        success: onLoaded,
+        error: onError
+    });
+}
+
+function onEventsReady(events)
+{
+    var end = $('#periodEnd').datepicker('getDate') || new Date(2099, 1, 1);
+    var filters = {
+        start: $('#periodStart').datepicker('getDate'),
+        end: end,
+        order: true
+    };
+    var cities = $('#cities').val();
+    if (cities) filters.cities = cities.toLowerCase().split(',');
+    var countries = $('#countries').val();
+    if (countries) filters.countries = countries.toLowerCase().split(',');
+    events = filterEvents(events, filters);
+    showEvents(sortEvents(events, 'asc'));
+    $('#startSearch').attr('disabled', null);
+    $('#progressbar-container').hide()
+        .find('#progressbar-text').text('');
+}
+
+function showEvents(events)
 {
     $('#results').remove();
-    var grouped = groupEvents();
-    var $table = $('<table>', {id: 'results'});
-    for(var date in grouped.order)
+    if (events.length == 0)
     {
-        date = grouped.order[date];
-        $table.append(
-            $('<tr>').append(
-                $('<td>', {
-                    class: 'divider',
-                    colspan: 4,
-                    text: date
-                })
-            )
-        );
-        for(var i in grouped[date])
+        $('body').append($('<div>', {id: 'noevents', text: 'No events found'}));
+        return;
+    }
+    var $table = $('<table>', {id: 'results'});
+    var previousDate = 0;
+    for (var i in events)
+    {
+        var event = events[i];
+        if (event.date != previousDate)
         {
-            var event = grouped[date][i];
-            var $tr = $('<tr>')
-                .append($('<td>').append(
-                    $('<a>', {
-                        href: 'http://last.fm/music/'
-                            + encodeURIComponent(event.artist) + '/+events',
-                        text: event.artist,
-                        target: '_blank',
-                        title: 'Go to artist events'
+            previousDate = event.date.getTime();
+            $table.append(
+                $('<tr>').append(
+                    $('<td>', {
+                        class: 'divider',
+                        colspan: 4,
+                        text: event.date.toLocaleDateString()
                     })
-                ))
-                .append($('<td>').append(
-                    $('<a>', {
-                        href: event.url,
-                        text: event.title,
-                        target:' _blank',
-                        title: 'Go to event page'
-                    })
-                ))
-                .append($('<td>', {text: event.location}))
-                .append($('<td>', {text: event.venue}));
-            $table.append($tr);
+                )
+            );
         }
+        var $tr = $('<tr>')
+            .append($('<td>').append(
+                $('<a>', {
+                    href: 'http://last.fm/music/'
+                        + encodeURIComponent(event.artist) + '/+events',
+                    text: event.artist,
+                    target: '_blank',
+                    title: 'Go to artist events'
+                })
+            ))
+            .append($('<td>').append(
+                $('<a>', {
+                    href: event.url,
+                    text: event.title,
+                    target:' _blank',
+                    title: 'Go to event page'
+                })
+            ))
+            .append($('<td>', {text:
+                event.city ? event.city + ', ' + event.country
+                           : event.country}))
+            .append($('<td>', {text: event.venue}));
+        $table.append($tr);
     }
     $('body').append($table);
 }
 
 $(document).ready(function(){
-    $('#periodStart').datepicker({
-        minDate: new Date(),
+    var now = new Date();
+    $('#periodStart').val(now.toLocaleDateString())
+        .datepicker({
+        minDate: now,
+        defaultDate: now,
         onSelect: function(dateText, inst) {
             var $endPicker = $('#periodEnd');
             var newDate = new Date(dateText);
@@ -252,6 +361,6 @@ $(document).ready(function(){
             $endPicker.datepicker('option', 'minDate', newDate);
         }
     });
-    $('#periodEnd').datepicker({minDate: new Date()});
+    $('#periodEnd').datepicker({minDate: now});
     $('#startSearch').click(onStartSearch);
 });
