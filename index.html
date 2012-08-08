@@ -11,14 +11,29 @@
     </head>
     <body>
         <h1>Find events of your favorite artists for specified period</h1>
-        Username: <input type=text id="username"><br>
-        Artists: <input type=text id="artists"><br>
-        Period:<br>
-        Start: <input type=text id="periodStart"><br>
-        End: <input type=text id="periodEnd"><br>
-        Cities: <input type=text id="cities"><br>
-        Countries: <input type=text id="countries"><br>
+        <div class="section">
+            <div class="caption">Username:</div>
+            <input type=text id="username"><br>
+            <b>Or</b><br>
+            <div class="caption">Artists:</div>
+            <input type=text id="artists">
+        </div>
+        <div class="section">
+            Period:<br>
+            <div class="caption">Start:</div>
+            <input type=text id="periodStart">
+            <div class="caption">End:</div>
+            <input type=text id="periodEnd"><br>
+        </div>
+        <div class="section">
+            <div class="caption">Cities:</div>
+            <input type=text id="cities"><br>
+            <b>Or</b><br>
+            <div class="caption">Countries:</div>
+            <input type=text id="countries">
+        </div>
         <input type=button value=Search id="startSearch">
+        Only top50 artists at the moment are used for search.<br>
         <noscript><br>Please enable JavaScript in your browser to use this page</noscript>
         <div id="progressbar-container">
             <div id="progressbar"></div>
