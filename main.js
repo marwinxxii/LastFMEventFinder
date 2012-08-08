@@ -119,7 +119,15 @@ function onAjaxError(xhr, textStatus, errorThrown)
         .find('#progressbar-text').text('');
 }
 
+Array.remove = function(array, from, to) {
+    var rest = array.slice((to || from) + 1 || array.length);
+    array.length = from < 0 ? array.length + from : from;
+    return array.push.apply(array, rest);
+};
+
 var user = null;
+var artistCache = {};
+var eventCache = {};
 
 function onStartSearch()
 {
@@ -143,6 +151,11 @@ function onStartSearch()
     }
     else
     {
+        if (artistCache[user])
+        {
+            onArtistsReady(artistCache[user].slice());
+            return;
+        }
         $('#progressbar-container')
             .show()
             .find('#progressbar')
@@ -178,6 +191,7 @@ function onStartSearch()
             }
             else
             {
+                artistCache[user] = artists.slice();
                 onArtistsReady(artists);
             }
         };
@@ -193,17 +207,27 @@ function onStartSearch()
 
 function onArtistsReady(artists)
 {
+    console.log(artists);
     $('#progressbar').progressbar({value: 0});
     if (artists.length == 0)
     {
         $('#progressbar-container').hide()
             .find('#progressbar-text').text('');
         alert('Artists not found');
+        $('#startSearch').attr('disabled', null);
         return;
     }
-    artists.total = artists.length;
-    var artist = artists.pop();
+    var artist = '';
     var events = [];
+    for (var i in artists)
+    {
+        artist = artists[i];
+        if (artist in eventCache)
+        {
+            events.push.apply(events, eventCache[artist]);
+            Array.remove(artists, i);
+        }
+    }
     var loadNext = function()
     {
         if (artists.length != 0)
@@ -240,6 +264,8 @@ function onArtistsReady(artists)
             var page = parseInt(data.events.page);
             var totalPages = parseInt(data.events.totalPages);
         }
+        if (!(artist in eventCache)) eventCache[artist] = result;
+        eventCache[artist].push.apply(eventCache[artist], result);
         if (page < totalPages)
         {
             lastfm({
@@ -258,18 +284,27 @@ function onArtistsReady(artists)
         $('#progressbar-text').text(artist + ': failed');
         loadNext();
     };
-    $('#progressbar-container')
-        .show()
-        .find('#progressbar')
-        .progressbar({value: 0});
-    $('#progressbar-text').text(artist);
-    lastfm({
-        method: 'artist.getevents',
-        artist: artist,
-        page: 1,
-        success: onLoaded,
-        error: onError
-    });
+    if (artists.length != 0)
+    {
+        artists.total = artists.length;
+        artist = artists.pop();
+        $('#progressbar-container')
+            .show()
+            .find('#progressbar')
+            .progressbar({value: 0});
+        $('#progressbar-text').text(artist);
+        lastfm({
+            method: 'artist.getevents',
+            artist: artist,
+            page: 1,
+            success: onLoaded,
+            error: onError
+        });
+    }
+    else
+    {
+        onEventsReady(events);
+    }
 }
 
 function onEventsReady(events)
@@ -281,9 +316,23 @@ function onEventsReady(events)
         order: true
     };
     var cities = $('#cities').val();
-    if (cities) filters.cities = cities.toLowerCase().split(',');
+    if (cities)
+    {
+        filters.cities = cities.trim().toLowerCase().split(',');
+        for(var i in filters.cities)
+        {
+            filters.cities[i] = filters.cities[i].trim();
+        }
+    }
     var countries = $('#countries').val();
-    if (countries) filters.countries = countries.toLowerCase().split(',');
+    if (countries)
+    {
+        filters.countries = countries.trim().toLowerCase().split(',');
+        for (var i in filters.countries)
+        {
+            filters.countries[i] = filters.countries[i].trim();
+        }
+    }
     events = filterEvents(events, filters);
     showEvents(sortEvents(events, 'asc'));
     $('#startSearch').attr('disabled', null);
@@ -304,7 +353,7 @@ function showEvents(events)
     for (var i in events)
     {
         var event = events[i];
-        if (event.date != previousDate)
+        if (event.date.getTime() != previousDate)
         {
             previousDate = event.date.getTime();
             $table.append(
