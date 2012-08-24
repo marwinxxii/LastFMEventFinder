@@ -119,13 +119,7 @@ function onAjaxError(xhr, textStatus, errorThrown)
         .find('#progressbar-text').text('');
 }
 
-Array.remove = function(array, from, to) {
-    var rest = array.slice((to || from) + 1 || array.length);
-    array.length = from < 0 ? array.length + from : from;
-    return array.push.apply(array, rest);
-};
-
-var user = null;
+var user = null; // current user
 var artistCache = {};
 var eventCache = {};
 
@@ -153,7 +147,7 @@ function onStartSearch()
     {
         if (artistCache[user])
         {
-            onArtistsReady(artistCache[user].slice());
+            onArtistsReady(artistCache[user]);
             return;
         }
         $('#progressbar-container')
@@ -191,7 +185,7 @@ function onStartSearch()
             }
             else
             {
-                artistCache[user] = artists.slice();
+                artistCache[user] = artists;
                 onArtistsReady(artists);
             }
         };
@@ -207,7 +201,6 @@ function onStartSearch()
 
 function onArtistsReady(artists)
 {
-    console.log(artists);
     $('#progressbar').progressbar({value: 0});
     if (artists.length == 0)
     {
@@ -219,73 +212,84 @@ function onArtistsReady(artists)
     }
     var artist = '';
     var events = [];
+    var artistsToLoad = [];
     for (var i in artists)
     {
         artist = artists[i];
         if (artist in eventCache)
         {
             events.push.apply(events, eventCache[artist]);
-            Array.remove(artists, i);
+        }
+        else
+        {
+            artistsToLoad.push(artist);
         }
     }
-    var loadNext = function()
+    if (artistsToLoad.length != 0)
     {
-        if (artists.length != 0)
+        artists = artistsToLoad;
+        var loadNext = function()
         {
-            // -1 because one was already loaded at first step
-            $('#progressbar').progressbar('option', 'value',
-                (artists.total - artists.length - 1) / artists.total * 100);
-            artist = artists.pop();
-            lastfm({
-                method: 'artist.getevents',
-                artist: artist,
-                page: 1,
-                success: onLoaded,
-                error: onError
-            });
-        }
-        else
+            if (artists.length != 0)
+            {
+                // -1 because one was already loaded at first step
+                $('#progressbar').progressbar('option', 'value',
+                    (artists.total - artists.length - 1) / artists.total * 100);
+                artist = artists.pop();
+                lastfm({
+                    method: 'artist.getevents',
+                    artist: artist,
+                    page: 1,
+                    success: onLoaded,
+                    error: onError
+                });
+            }
+            else
+            {
+                onEventsReady(events);
+            }
+        };
+        var onLoaded = function(data)
         {
-            onEventsReady(events);
-        }
-    };
-    var onLoaded = function(data)
-    {
-        var result = parseEvents(data, artist);
-        events.push.apply(events, result);
-        $('#progressbar-text').text(artist);
-        if ('@attr' in data.events)
+            var result = parseEvents(data, artist);
+            events.push.apply(events, result);
+            $('#progressbar-text').text(artist);
+            if ('@attr' in data.events)
+            {
+                var page = parseInt(data.events['@attr'].page);
+                var totalPages = parseInt(data.events['@attr'].totalPages);
+            }
+            else
+            {
+                var page = parseInt(data.events.page);
+                var totalPages = parseInt(data.events.totalPages);
+            }
+            if (!(artist in eventCache))
+            {
+                eventCache[artist] = result;
+            }
+            else
+            {
+                eventCache[artist].push.apply(eventCache[artist], result);
+            }
+            if (page < totalPages)
+            {
+                lastfm({
+                    method: 'artist.getevents',
+                    artist: artist,
+                    page: page + 1,
+                    success: onLoaded,
+                    error: onError
+                });
+                return;
+            }
+            loadNext();
+        };
+        var onError = function(xhr, status, error)
         {
-            var page = parseInt(data.events['@attr'].page);
-            var totalPages = parseInt(data.events['@attr'].totalPages);
-        }
-        else
-        {
-            var page = parseInt(data.events.page);
-            var totalPages = parseInt(data.events.totalPages);
-        }
-        if (!(artist in eventCache)) eventCache[artist] = result;
-        eventCache[artist].push.apply(eventCache[artist], result);
-        if (page < totalPages)
-        {
-            lastfm({
-                method: 'artist.getevents',
-                artist: artist,
-                page: page + 1,
-                success: onLoaded,
-                error: onError
-            });
-            return;
-        }
-        loadNext();
-    };
-    var onError = function(xhr, status, error)
-    {
-        $('#progressbar-text').text(artist + ': failed');
-        loadNext();
-    };
-    if (artists.length != 0)
-    {
+            $('#progressbar-text').text(artist + ': failed');
+            loadNext();
+        };
         artists.total = artists.length;
         artist = artists.pop();
         $('#progressbar-container')
