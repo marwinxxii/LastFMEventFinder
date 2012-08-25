@@ -47,9 +47,20 @@
    clear: both;
 }
 
-.search-container
+#searchContainer
 {
     width: 600px;
     text-align: center;
     margin: 5px;
+}
+
+.alert
+{
+    border: 1px solid red;
+}
+
+#message
+{
+    margin: 10px 0;
+    font-weight: bold;
 }

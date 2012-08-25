@@ -131,20 +131,36 @@ var saveArtistsLocally = false;
 
 function onStartSearch()
 {
-    user = $('#username').val();
-    var artists = $('#artists').val();
+    var $username = $('#username');
+    user = $username.val();
+    var $artists = $('#artists');
+    var artists = $artists.val();
     if (!user && !artists)
     {
-        alert('Please enter user name or artists');
+        $('#searchContainer').prepend($('<div>', {
+            id: 'message',
+            text: 'Please enter user name or artists'}));
+        if (!$username.hasClass('alert'))
+            $username.addClass('alert');
+        if (!$artists.hasClass('alert'))
+            $artists.addClass('alert');
         return;
     }
-    if (!$('#periodStart').datepicker('getDate'))
+    $username.removeClass('alert');
+    $artists.removeClass('alert');
+    var $periodStart = $('#periodStart');
+    if (!$periodStart.datepicker('getDate'))
     {
-        alert('Please enter start date of period');
+        $('#searchContainer').prepend($('<div>', {
+            id: 'message',
+            text: 'Please enter start date of period'}));
+        if (!$periodStart.hasClass('alert'))
+            $periodStart.addClass('alert');
         return;
     }
+    $periodStart.removeClass('alert');
     $('#startSearch').attr('disabled', 'disabled');
-    $('#noevents').remove();
+    $('#message').remove();
     if (artists)
     {
         onArtistsReady(artists.split(','));
@@ -359,7 +375,7 @@ function showEvents(events)
     $('#results').remove();
     if (events.length == 0)
     {
-        $('body').append($('<div>', {id: 'noevents', text: 'No events found'}));
+        $('body').append($('<div>', {id: 'message', text: 'No events found'}));
         return;
     }
     var $table = $('<table>', {id: 'results'});
