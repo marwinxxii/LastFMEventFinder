@@ -392,6 +392,13 @@ function showEvents(events)
         return;
     }
     var $table = $('<table>', {id: 'results'});
+    $table.append(
+        $('<thead>')
+            .append($('<th>', {text: 'Artist'}))
+            .append($('<th>', {text: 'Title'}))
+            .append($('<th>', {text: 'City, Country'}))
+            .append($('<th>', {text: 'Venue'}))
+    );
     var previousDate = 0;
     for (var i in events)
     {
