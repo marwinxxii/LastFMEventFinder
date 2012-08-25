@@ -12,7 +12,17 @@ function lastfm(params)
         }),
         dataType: 'jsonp',
         crossDomain: true,
-        success: success,
+        success: function(data, status, xhr) {
+            if ('error' in data)
+            {
+                error(xhr, status, data.message);
+                return;
+            }
+            else
+            {
+                success(data, status, xhr);
+            }
+        },
         error: error
     });
 }
@@ -113,7 +123,7 @@ function sortEvents(events, order)
 
 function onAjaxError(xhr, textStatus, errorThrown)
 {
-    alert("Sorry, couldn't load artist list");
+    showErrorMessage("Sorry, couldn't load artist list: " + errorThrown);
     $('#startSearch').removeAttr('disabled');
     $('#progressbar-container').hide()
         .find('#progressbar-text').text('');
@@ -122,6 +132,13 @@ function onAjaxError(xhr, textStatus, errorThrown)
 function storageAvailable()
 {
     return typeof window.localStorage != 'undefined' && !!window.localStorage;
+}
+
+function showErrorMessage(text)
+{
+    $('#searchContainer').prepend($('<div>', {
+            id: 'message',
+            text: text}));
 }
 
 var user = null; // current user
@@ -137,9 +154,7 @@ function onStartSearch()
     var artists = $artists.val();
     if (!user && !artists)
     {
-        $('#searchContainer').prepend($('<div>', {
-            id: 'message',
-            text: 'Please enter user name or artists'}));
+        showErrorMessage('Please enter user name or artists');
         if (!$username.hasClass('alert'))
             $username.addClass('alert');
         if (!$artists.hasClass('alert'))
@@ -151,9 +166,7 @@ function onStartSearch()
     var $periodStart = $('#periodStart');
     if (!$periodStart.datepicker('getDate'))
     {
-        $('#searchContainer').prepend($('<div>', {
-            id: 'message',
-            text: 'Please enter start date of period'}));
+        showErrorMessage('Please enter start date of period');
         if (!$periodStart.hasClass('alert'))
             $periodStart.addClass('alert');
         return;
