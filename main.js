@@ -119,9 +119,15 @@ function onAjaxError(xhr, textStatus, errorThrown)
         .find('#progressbar-text').text('');
 }
 
+function storageAvailable()
+{
+    return typeof window.localStorage != 'undefined' && !!window.localStorage;
+}
+
 var user = null; // current user
 var artistCache = {};
 var eventCache = {};
+var saveArtistsLocally = false;
 
 function onStartSearch()
 {
@@ -186,6 +192,10 @@ function onStartSearch()
             else
             {
                 artistCache[user] = artists;
+                if (saveArtistsLocally && storageAvailable())
+                {
+                    localStorage.artistCache = JSON.stringify(artistCache);
+                }
                 onArtistsReady(artists);
             }
         };
@@ -416,4 +426,38 @@ $(document).ready(function(){
     });
     $('#periodEnd').datepicker({minDate: now});
     $('#startSearch').click(onStartSearch);
+    if (storageAvailable())
+    {
+        if ('saveArtistsLocally' in localStorage)
+        {
+            saveArtistsLocally = localStorage.saveArtistsLocally === 'true';
+            var title = 'Uncheck to clean saved artist list';
+            $('#saveArtists')
+                .attr('checked', saveArtistsLocally)
+                .attr('title', title);
+            $('#optionsContainer label').attr('title', title);
+        }
+        if ('artistCache' in localStorage)
+        {
+            try
+            {
+                artistCache = JSON.parse(localStorage.artistCache);
+            }
+            catch(e)
+            {
+                artistCache = {};
+            }
+        }
+        $('#optionsContainer').show()
+            .find('#saveArtists')
+            .click(function(){
+                saveArtistsLocally = !saveArtistsLocally;
+                if (!saveArtistsLocally)
+                {
+                    localStorage.removeItem('artistCache');
+                    localStorage.removeItem('saveArtistsLocally');
+                }
+                localStorage.saveArtistsLocally = saveArtistsLocally;
+            });
+    }
 });
