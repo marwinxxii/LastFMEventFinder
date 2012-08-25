@@ -1,6 +1,6 @@
 .section
 {
-    width: 400px;
+    width: 600px;
     border: 1px solid black;
     padding: 5px;
     margin: 5px;
@@ -9,6 +9,7 @@
 .caption
 {
     width: 100px;
+    float: left;
 }
 
 .divider
@@ -30,4 +31,25 @@
     top: 10px;
     width: 420px;
     text-align: center;
+}
+
+.group
+{
+    float: left;
+    width: 50%;
+}
+
+.clearfix:after
+{ 
+   content: " ";
+   display: block; 
+   height: 0; 
+   clear: both;
+}
+
+.search-container
+{
+    width: 600px;
+    text-align: center;
+    margin: 5px;
 }

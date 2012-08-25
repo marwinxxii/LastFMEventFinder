@@ -18,22 +18,31 @@
             <div class="caption">Artists:</div>
             <input type=text id="artists">
         </div>
-        <div class="section">
-            Period:<br>
-            <div class="caption">Start:</div>
-            <input type=text id="periodStart">
-            <div class="caption">End:</div>
-            <input type=text id="periodEnd"><br>
+        <div class="section clearfix">
+            <div>Period:</div>
+            <div class="group">
+                <div class="caption">Start:</div>
+                <input type=text id="periodStart">
+            </div>
+            <div class="group">
+                <div class="caption">End:</div>
+                <input type=text id="periodEnd">
+            </div>
         </div>
-        <div class="section">
-            <div class="caption">Cities:</div>
-            <input type=text id="cities"><br>
-            <b>Or</b><br>
-            <div class="caption">Countries:</div>
-            <input type=text id="countries">
+        <div class="section clearfix">
+            <div class="group">
+                <div class="caption">Cities:</div>
+                <input type=text id="cities">
+            </div>
+            <div class="group">
+                <div class="caption">Countries:</div>
+                <input type=text id="countries">
+            </div>
         </div>
-        <input type=button value=Search id="startSearch">
-        Only top50 artists at the moment are used for search.<br>
+        <div class="search-container">
+            <input type=button value=Search id="startSearch"><br>
+            Only top50 artists at the moment are used for search.
+        </div>
         <noscript><br>Please enable JavaScript in your browser to use this page</noscript>
         <div id="progressbar-container">
             <div id="progressbar"></div>
